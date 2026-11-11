@@ -1,0 +1,105 @@
+import time
+import random
+import threading
+import sys
+
+class JuegoLuzRojaLuzVerde:
+    def __init__(self, filas=5, columnas=10):
+        self.filas = filas
+        self.columnas = columnas
+        self.jugador_x = 0
+        self.jugador_y = filas // 2
+        self.meta_x = columnas - 1
+
+        self.luz_verde = True
+        self.juego_activo = True
+        self.ha_ganado = False
+        self.eliminado = False
+
+        self.lock = threading.Lock()
+
+    def alternar_luces(self):
+        """Hilo secundario que cambia las luces independientemente en segundo plano."""
+        while self.juego_activo:
+            duracion = random.uniform(1.5, 3.5)
+            time.sleep(duracion)
+            if not self.juego_activo:
+                break
+            with self.lock:
+                self.luz_verde = not self.luz_verde
+                # Imprimir el cambio de estado de forma limpia sin bloquear el input
+                color = "🟢 LUZ VERDE (¡Avanza!)" if self.luz_verde else "🔴 LUZ ROJA (¡DETENTE!)"
+                sys.stdout.write(f"\r\n[ALERTA] El semáforo ha cambiado a: {color}\nTu movimiento (w/a/s/d): ")
+                sys.stdout.flush()
+
+    def mostrar_tablero(self):
+        """Dibuja el estado actual del campo de juego."""
+        estado_luz = "🟢 LUZ VERDE" if self.luz_verde else "🔴 LUZ ROJA"
+        print("\n" + "="*40)
+        print(f" ESTADO ACTUAL: {estado_luz}")
+        print("="*40)
+
+        for r in range(self.filas):
+            fila_str = []
+            for c in range(self.columnas):
+                if r == self.jugador_y and c == self.jugador_x:
+                    fila_str.append('🏃')
+                elif c == self.meta_x:
+                    fila_str.append('🏁')
+                else:
+                    fila_str.append('.')
+            print(" ".join(fila_str))
+        print("="*40)
+
+    def jugar(self):
+        # Iniciar el hilo de alternancia de luces
+        hilo_luces = threading.Thread(target=self.alternar_luces, daemon=True)
+        hilo_luces.start()
+
+        print("¡Bienvenido a Luz Roja, Luz Verde!")
+        print("Llega a la meta (🏁). Puedes moverte de forma continua.")
+        print("Usa 'w' (arriba), 's' (abajo), 'a' (izquierda), 'd' (derecha).")
+        print("¡Si te mueves cuando está en LUZ ROJA perderás de inmediato!\n")
+
+        while self.juego_activo:
+            self.mostrar_tablero()
+            accion = input("Tu movimiento (w/a/s/d): ").strip().lower()
+
+            if not self.juego_activo:
+                break
+
+            if accion not in ['w', 'a', 's', 'd']:
+                print("Movimiento no válido. Usa 'w', 'a', 's' o 'd'.")
+                continue
+
+            with self.lock:
+                # Comprobación inmediata del estado de la luz al realizar el movimiento
+                if not self.luz_verde:
+                    self.eliminado = True
+                    self.juego_activo = False
+                    print("\n💥 ¡TE HAS MOVIDO EN LUZ ROJA! Por lo tanto seras eliminado. 💀")
+                    break
+
+                # Realizar movimiento
+                nueva_x, nueva_y = self.jugador_x, self.jugador_y
+                if accion == 'w' and self.jugador_y > 0:
+                    nueva_y -= 1
+                elif accion == 's' and self.jugador_y < self.filas - 1:
+                    nueva_y += 1
+                elif accion == 'a' and self.jugador_x > 0:
+                    nueva_x -= 1
+                elif accion == 'd':
+                    nueva_x += 1
+
+                self.jugador_x, self.jugador_y = nueva_x, nueva_y
+
+                # Verificar si ha alcanzado la meta
+                if self.jugador_x == self.meta_x:
+                    self.ha_ganado = True
+                    self.juego_activo = False
+                    print("\n🎉 ¡Felicidades! ¡Has alcanzado la meta y sobrevivido......por ahora! 🏆")
+                    break
+
+if __name__ == '__main__':
+    juego = JuegoLuzRojaLuzVerde()
+    juego.jugar()
